@@ -226,9 +226,28 @@ struct node * optimal_child (struct node *head) {
   return ret;
 }
 
+// this does not work FIX
+struct node * free_children (struct node *head, struct node *keep_c) {
+  struct stack_node *stack_head = init_stack();
+  struct node *popped;
+  push(stack_head, head);
+  // to avoid checking if = keep_c for each level, do top level first
+  for (struct node * s = head->child; s != 0; s = s->sibling) {
+    if (s != keep_c) push(stack_head, s);
+  }
+  while (!stack_is_empty(stack_head)) {
+    popped = pop(stack_head);
+    if (popped->child != 0) push(stack_head, popped->child);
+    if (popped->sibling != 0) push(stack_head, popped->sibling);
+    free(popped->s);
+  }
+  return keep_c;
+}
+
 unsigned int ai_play (int p1, int p2) {
   struct node *game_tree = build_game_tree(p1, p2);
   struct node *optimal = optimal_child(game_tree);
+  // struct node *head = free_children(game_tree, optimal); broken FIX
   return optimal->s->s[1];
 }
 
