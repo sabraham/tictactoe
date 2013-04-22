@@ -20,5 +20,5 @@ A tic-tac-toe game with a computer opponent. Not interesting, you say? Trivial b
 
 ## Anything else?
 
-Yes -- it doesn't work right now. State: will score the game tree correctly.
+Yes -- the AI is not efficient, but not in a way that affects gameplay. Currently, after each move, the game tree is rebuilt from the current state. The only TODO is to fix this and free up the nodes that are no longer needed.
 
