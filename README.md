@@ -29,8 +29,3 @@ do
 while
   game is not over
 ```
-
-## Anything else?
-
-Yes -- the AI is not efficient, but not in a way that affects gameplay. Currently, after each move, the game tree is rebuilt from the current state. The only TODO is to fix this.
-

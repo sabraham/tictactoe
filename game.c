@@ -43,8 +43,10 @@ bool stack_is_empty (struct stack_node *head) {
 }
 
 struct node * pop (struct stack_node *head) {
-  struct node *ret = head->next->key;
+  struct stack_node *t = head->next;
+  struct node *ret = t->key;
   head->next = head->next->next;
+  free(t);
   return ret;
 }
 
@@ -177,7 +179,7 @@ double score_children (struct node *p) {
 struct node * build_game_tree (int p1, int p2) {
   struct node *head = init_game_tree();
   struct state *state = (struct state *) malloc(sizeof(struct state));
-  state->player = 0;
+  state->player = 1;
   state->s[0] = p1; state->s[1] = p2;
   head->s = state;
   struct stack_node *stack_head = init_stack();
@@ -226,10 +228,15 @@ struct node * optimal_child (struct node *head) {
   return ret;
 }
 
+struct node * find_move (struct node *head, unsigned int p1) {
+  struct node *ret = head->child;
+  for (; ret->s->s[0] != p1; ret = ret->sibling) {}
+  return ret;
+}
+
 struct node * free_children (struct node *head, struct node *keep_c) {
   struct stack_node *stack_head = init_stack();
   struct node *popped;
-  printf("pointer: %p\n", head);
   push(stack_head, head->child);
   while (!stack_is_empty(stack_head)) {
     popped = pop(stack_head);
@@ -244,26 +251,27 @@ struct node * free_children (struct node *head, struct node *keep_c) {
   return keep_c;
 }
 
-unsigned int ai_play (int p1, int p2) {
-  struct node *game_tree = build_game_tree(p1, p2);
-  struct node *optimal = optimal_child(game_tree);
-  struct node *game_tree = free_children(game_tree, optimal);
-  printf("** %d\n", optimal->s->s[1]);
+unsigned int ai_play (int p1, int p2, struct node **game_tree) {
+  struct node *p1_move = find_move(*game_tree, p1);
+  *game_tree = free_children(*game_tree, p1_move);
+  struct node *optimal = optimal_child(*game_tree);
+  *game_tree = free_children(*game_tree, optimal);
   return optimal->s->s[1];
 }
 
 int main () {
   printf("Shall we play a game?\n");
   unsigned int p1 = 0, p2 = 0;
-  unsigned int m;
   print_board(&p1, &p2);
+  unsigned int m;
+  struct node *game_tree = build_game_tree(p1, p2);
   while (!endgame(p1, p2)) {
     p1 = turn(p1, p2, m);
     printf("\n");
     printf("Player 1's move\n");
     print_board(&p1, &p2);
-    if (endgame(p1, p2)) break;
-    p2 = ai_play(p1, p2);
+    if (endgame(p1, p2)) break;    
+    p2 = ai_play(p1, p2, &game_tree);
     printf("\n");
     printf("Computer's move\n");
     print_board(&p1, &p2);
