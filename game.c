@@ -10,11 +10,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+const double WIN_VALUE = 1.0;
+const double DRAW_VALUE = 0.5;
+const double LOSS_VALUE = 0.0;
+
 struct state {
-  unsigned int mine;
-  unsigned int yours;
-  bool scored;
+  unsigned int s[2];
   double score;
+  unsigned int player;
 };
 
 struct node {
@@ -59,60 +62,54 @@ void push (struct stack_node *head, struct node *k) {
   return;
 }
 
-bool won (unsigned int *p) {
-  if (*p & 1) {
-    if ((*p & 2) && (*p & 4)) return true; // bottom row
-    if ((*p & 16) && (*p & 256)) return true; // up diag
-    if ((*p & 8) && (*p & 64)) return true; // left col
-
+bool won (unsigned int p) {
+  if (p & 1) {
+    if ((p & 2) && (p & 4)) return true; // bottom row
+    if ((p & 16) && (p & 256)) return true; // up diag
+    if ((p & 8) && (p & 64)) return true; // left col
   }
-  if (*p & 8) {
-    if ((*p & 16) && (*p & 32)) return true; // middle row
+  if (p & 8) {
+    if ((p & 16) && (p & 32)) return true; // middle row
   }
-  if (*p & 64) {
-    if ((*p & 128) && (*p & 256)) return true; // top row
-    if ((*p & 16) && (*p & 4)) return true; // down diag
-    return false;
+  if (p & 64) {
+    if ((p & 128) && (p & 256)) return true; // top row
+    if ((p & 16) && (p & 4)) return true; // down diag
   }
-  if (*p & 128) {
-    if ((*p & 16) && (*p & 2)) return true; // middle col
+  if (p & 128) {
+    if ((p & 16) && (p & 2)) return true; // middle col
   }
-  if (*p & 256) {
-    if ((*p & 32) && (*p & 4)) return true; // middle col
+  if (p & 256) {
+    if ((p & 32) && (p & 4)) return true; // right col
   }
   return false;
 }
 
-bool draw (unsigned int *p1, unsigned int *p2) {
-  return (*p1 | *p2) == 511;
+bool no_openings (unsigned int p1, unsigned int p2) {
+  return (p1 | p2) == 511;
 }
 
-bool valid_move (int *p1, int *p2, unsigned int *m) {
-  return !((*p1 | *p2) & (1 << *m)) && *m < 9;
+bool valid_move (unsigned int p1, unsigned int p2, unsigned int m) {
+  return !((p1 | p2) & (1 << m)) && m < 9;
 }
 
-void move (unsigned int *p, unsigned int *m) {
-  *p |= (1 << *m);
-  return;
+unsigned int move (unsigned int p, unsigned int m) {
+  return p | (1 << m);
 }
 
-void turn (unsigned int *p1, unsigned int *p2, unsigned int *m) {
+unsigned int turn (unsigned int p1, unsigned int p2, unsigned int m) {
   while (true) {
-    scanf("%d", m);
-    if (valid_move(p1, p2, m)) {
-      move(p1, m);
+    scanf("%d", &m);
+    if (valid_move(p1, p2, m))
       break;
-    } else {
+    else
       printf("People sometimes make mistakes.\n");
-    }
   }
-  return;
+  return move(p1, m);;
 }
 
-bool endgame (unsigned int *p1, unsigned int *p2) {
-  //  printf("considering %d %d\n", *p1, *p2);
+bool endgame (unsigned int p1, unsigned int p2) {
   return won(p1) || won(p2)
-    || draw(p1, p2);
+    || no_openings(p1, p2);
 }
 
 struct node * init_game_tree () {
@@ -136,19 +133,19 @@ void print_board (int *p1, int *p2) {
 }
 
 void push_possible_moves (struct stack_node *head_sn,
-                          struct node *parent_n,
-                          unsigned int *p1, unsigned int *p2) {
-  struct node * prev_child_n = 0;
+                          struct node *parent_n) {
+  unsigned int p1 = parent_n->s->s[0], p2 = parent_n->s->s[1];
+  struct node *prev_child_n = 0;
   for (int i = 0; i < 9; ++i)
-    if (valid_move(p1, p2, &i)) {
+    if (valid_move(p1, p2, i)) {
       struct stack_node * child_sn =
         (struct stack_node *) malloc(sizeof(struct stack_node));
       struct node * child_n = (struct node *) malloc(sizeof(struct node));
       struct state * child =
         (struct state *) malloc(sizeof(struct state));
-      child->scored = false;
-      child->mine = *p2; child->yours = *p1; // swap players each level
-      move(&(child->mine), &i);
+      child->s[0] = p1; child->s[1] = p2;
+      child->player = (parent_n->s->player + 1) % 2;
+      child->s[child->player] = move(child->s[child->player], i);
       child_n->s = child; child_n->child = 0; child_n->sibling = 0;
       child_sn->key = child_n;
       if (prev_child_n)
@@ -156,16 +153,15 @@ void push_possible_moves (struct stack_node *head_sn,
       else
         parent_n->child = child_n;
       prev_child_n = child_n;
-      //      printf("%d is a valid move!\n", i);
       push(head_sn, child_n);
     }
   return;
 }
 
-double score (int *p1, int *p2) {
-  if (won(p1)) return 1.0;
-  else if (won(p2)) return -1.0;
-  else return 0.0;
+double score (unsigned int p1, unsigned int p2) {
+  if (won(p1)) return LOSS_VALUE;
+  else if (won(p2)) return WIN_VALUE;
+  else return DRAW_VALUE;
 }
 
 double score_children (struct node *p) {
@@ -178,10 +174,11 @@ double score_children (struct node *p) {
   return sum / (double) count;
 }
 
-struct node * build_game_tree (int *p1, int *p2) {
+struct node * build_game_tree (int p1, int p2) {
   struct node *head = init_game_tree();
   struct state *state = (struct state *) malloc(sizeof(struct state));
-  state->mine = *p1; state->yours = *p2;
+  state->player = 0;
+  state->s[0] = p1; state->s[1] = p2;
   head->s = state;
   struct stack_node *stack_head = init_stack();
   struct stack_node *upper_stack_head = init_stack();
@@ -190,42 +187,67 @@ struct node * build_game_tree (int *p1, int *p2) {
   push(stack_head, head);
   while(!stack_is_empty(stack_head)) {
     popped = pop(stack_head);
-    //    print_board(&(popped->s->mine), &(popped->s->yours));
-    if (!endgame(&(popped->s->mine), &(popped->s->yours))) {
-      push_possible_moves(stack_head, popped,
-                          &(popped->s->mine), &(popped->s->yours));
+    if (!endgame(popped->s->s[0], popped->s->s[1])) {
+      push_possible_moves(stack_head, popped);
       push(upper_stack_head, popped);
     }
     else {
       popped->child = 0;
       popped->s->score =
-        score(&(popped->s->mine), &(popped->s->yours));
-      popped->s->scored = true;
-      //      printf("score: %f\n", popped->s->score);
+        score(popped->s->s[0], popped->s->s[1]);
     }
   }
   while(!stack_is_empty(upper_stack_head)) {
     popped = pop(upper_stack_head);
     popped->s->score = score_children(popped);
-    print_board(&(popped->s->mine), &(popped->s->yours));
-    printf("score: %f\n", popped->s->score);
   }
   return head;
 }
 
+struct node * choose_between_equal_scores (struct node *node1,
+                                           struct node *node2) {
+  // right now return first -- TODO choose randomly
+  return node1;
+}
+
+struct node * optimal_child (struct node *head) {
+  struct node *c = head->child;
+  struct node *ret = c;
+  double best_score = c->s->score;
+  for (struct node *sib = c->sibling; sib != 0; sib = sib->sibling) {
+    double sib_score = sib->s->score;
+    if (sib_score > best_score) {
+      best_score = sib_score;
+      ret = sib;
+    } else if (sib_score == best_score) {
+      ret = choose_between_equal_scores(ret, sib);
+    }
+  }
+  return ret;
+}
+
+unsigned int ai_play (int p1, int p2) {
+  struct node *game_tree = build_game_tree(p1, p2);
+  struct node *optimal = optimal_child(game_tree);
+  return optimal->s->s[1];
+}
+
 int main () {
   printf("Shall we play a game?\n");
-  unsigned int p1, p2;
+  unsigned int p1 = 0, p2 = 0;
   unsigned int m;
-  int x = 5; int y = 256;
-  //int x = 261; int y = 0;
-  /* int x = 341; int y = 170; */
-  struct node * head = build_game_tree(&x, &y);
-  printf("built tree\n");
-  /* score_game_tree(head); */
-  //printf("%d", endgame(&x, &y));
-  /* while (!endgame(&p1, &p2)) { */
-  /*   turn(&p1, &p2, &m); */
-  /* } */
+  print_board(&p1, &p2);
+  while (!endgame(p1, p2)) {
+    p1 = turn(p1, p2, m);
+    printf("\n");
+    printf("Player 1's move\n");
+    print_board(&p1, &p2);
+    if (endgame(p1, p2)) break;
+    p2 = ai_play(p1, p2);
+    printf("\n");
+    printf("Computer's move\n");
+    print_board(&p1, &p2);
+    printf("\n");
+  }
   return 0;
 }
